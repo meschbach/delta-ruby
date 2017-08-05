@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'benchmark'
 
 require 'sinatra/base'
 require 'sinatra/json'
@@ -41,8 +42,15 @@ describe MEE::Delta do
 			puts "Starting"
 			@pid = Kernel.spawn( "cd ../delta && node service.js --ttl 30 --port #{port}" )
 			MEE::Delta.default_url = "http://localhost:#{port}"
-			# Wait for up to 1 second for the service to come on-line
-			sleep 0.5
+			# Wait for the service to come on-line
+			result = Benchmark.measure do
+				has_connected = false
+				while not has_connected
+					has_connected = MEE::Delta.is_available
+				end
+			end
+
+			puts "Delta took %0.2fs to start" % result.real
 		end
 
 		# TOOD: Not being called on failure
@@ -68,9 +76,10 @@ describe MEE::Delta do
 				@ingress = MEE::Delta.ingress( "ruby-ingress", "ruby-target" )
 				@ingress.add_target( "ruby-target" )
 				@ingress_url = @ingress.address
+
+				port = Random.new.rand( 5000 ) + 32000
 				puts "Ingress URL: #{@ingress_url}"
 				@service = fork {
-					port = Random.new.rand( 5000 ) + 32000
 					MEE::Delta.register_target_port( "ruby-target", port )
 					puts "Simple test application registered on #{ port }"
 
@@ -78,8 +87,18 @@ describe MEE::Delta do
 				}
 				puts "Forked service as PID #{@service}"
 				# Wait until the process is booted
-				sleep 10
-				puts "Simple service should be running"
+				time_taken = Benchmark.measure do
+					responded = false
+					while not responded
+						begin
+							result = RestClient.get "http://localhost:#{port}/get-test"
+							responded = true
+						rescue Exception => e
+							responded = false
+						end
+					end
+				end
+				puts "Took %0.2fs to boot; simple service should be up and working." % time_taken.real
 			end
 
 			after do
