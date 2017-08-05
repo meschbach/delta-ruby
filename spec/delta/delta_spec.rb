@@ -40,7 +40,7 @@ describe MEE::Delta do
 		before(:all) do
 			port = random_ephemeral_port()
 			puts "Starting"
-			@pid = Kernel.spawn( "cd ../delta && node service.js --ttl 30 --port #{port}" )
+			@pid = Kernel.spawn( "npm install git+https://github.com/meschbach/delta && cd node_modules/delta && node service.js --ttl 30 --port #{port}" )
 			MEE::Delta.default_url = "http://localhost:#{port}"
 			# Wait for the service to come on-line
 			result = Benchmark.measure do
